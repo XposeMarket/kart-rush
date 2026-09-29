@@ -35,7 +35,7 @@ export function createAI(kart, skill, personality) {
       this.holdDrift = drift;
       // Rubber band: trail -> small boost; lead -> ease off. Scaled by cc skill.
       const gap = (player.progress - k.progress) / N;
-      k.aiBoost = Math.max(0.9, Math.min(1.1, 1 + gap * 0.3)) * (0.9 + this.skill * 0.12);
+      k.aiBoost = Math.max(0.84, Math.min(1.08, 1 + gap * 0.5)) * (0.88 + this.skill * 0.1);
       // Items.
       if (k.item && k.roulette <= 0) {
         this.itemDelay -= dt;

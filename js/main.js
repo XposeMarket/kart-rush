@@ -187,7 +187,7 @@ function emitFx(dt) {
     const f = k.forward, r = new THREE.Vector3(f.z, 0, -f.x);
     if (k.isDrifting) for (const s of [-1, 1]) { const p = k.pos.clone().addScaledVector(f, -1.2).addScaledVector(r, s * 1.1); p.y += 0.3; fx.spark(p, k.tier ? TIER_COLORS[k.tier] : '#ffffff', f); }
     if (k.boost > 0) for (const s of [-1, 1]) { const p = k.pos.clone().addScaledVector(f, -1.9).addScaledVector(r, s * 0.5); p.y += 0.6; fx.flame(p, f, k.boostPower >= 3 ? '#d45bff' : k.boostPower >= 2 ? '#ff7b1a' : '#4fb8ff'); }
-    if (k.offroad && k.grounded && Math.abs(k.speed) > 5) fx.dust(k.pos.clone().addScaledVector(f, -1.5), track.def.theme === 'snow' ? '#ffffff' : '#b8a27a');
+    if (k.offroad && k.grounded && !track.def.fall && Math.abs(k.speed) > 5) fx.dust(k.pos.clone().addScaledVector(f, -1.5), track.def.theme === 'snow' ? '#ffffff' : '#b8a27a');
     if (k.star > 0 && Math.random() < 0.6) fx.spark(k.pos.clone().setY(k.pos.y + 1.2), `hsl(${Math.random() * 360},100%,60%)`, f);
   }
 }
