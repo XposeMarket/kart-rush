@@ -1,79 +1,82 @@
-'use strict';
-// ---------- constants ----------
-const SEG = 200, ROADW = 2000, DRAW = 260, CAMH = 1000, FOV = 100, LAPS = 3;
-const CAMD = 1 / Math.tan((FOV / 2) * Math.PI / 180);
-const PLAYERZ = CAMH * CAMD;
-const MAXSP_BASE = SEG * 60;
-
-// ---------- roster (all original) ----------
-const CHARS = [
-  { id: 'rusty', name: 'Rusty', kind: 'Fox', color: '#f28a1c', alt: '#fff3d6', spd: 3, acc: 3, han: 4, wgt: 2, bio: 'Quick on his feet. Great in corners.' },
-  { id: 'luna',  name: 'Luna',  kind: 'Cat', color: '#8c7bff', alt: '#ffe9f4', spd: 2, acc: 5, han: 4, wgt: 1, bio: 'Explosive off the line. Featherweight.' },
-  { id: 'bolt',  name: 'Bolt',  kind: 'Robot', color: '#4ad0e8', alt: '#e8f7ff', spd: 4, acc: 3, han: 3, wgt: 3, bio: 'Balanced circuits. No weak spots.' },
-  { id: 'pip',   name: 'Pip',   kind: 'Frog', color: '#5bd45b', alt: '#fffbb0', spd: 3, acc: 4, han: 3, wgt: 2, bio: 'Bouncy and unpredictable.' },
-  { id: 'zed',   name: 'Zed',   kind: 'Wizard', color: '#d94f9a', alt: '#ffe4a8', spd: 4, acc: 2, han: 3, wgt: 3, bio: 'Slow to start, scary at top speed.' },
-  { id: 'coco',  name: 'Coco',  kind: 'Panda', color: '#e9e9e9', alt: '#222', spd: 2, acc: 3, han: 5, wgt: 4, bio: 'Glued to the road. Hard to bump.' },
-  { id: 'blaze', name: 'Blaze', kind: 'Dragon', color: '#e8432f', alt: '#ffd166', spd: 5, acc: 2, han: 2, wgt: 5, bio: 'Heavy hitter. Top speed king.' },
-  { id: 'ivy',   name: 'Ivy',   kind: 'Elf', color: '#2fa36b', alt: '#e8ffd6', spd: 3, acc: 4, han: 4, wgt: 1, bio: 'Agile all-rounder.' }
+// Kart Rush data: racers, rides, cups, courses, items. All art is procedural.
+export const CHARACTERS = [
+  { id: 'rico', name: 'Rico', cls: 'Medium', body: '#e5322d', pants: '#2649b8', skin: '#f6c89c', hat: 'cap', hatColor: '#e5322d', emblem: 'R', speed: 3, accel: 3, handling: 3, weight: 3 },
+  { id: 'gino', name: 'Gino', cls: 'Medium', body: '#2fae3f', pants: '#2649b8', skin: '#f6c89c', hat: 'cap', hatColor: '#2fae3f', emblem: 'G', speed: 3, accel: 3, handling: 4, weight: 3 },
+  { id: 'peach', name: 'Rosa', cls: 'Light', body: '#ff7fb7', pants: '#ff7fb7', skin: '#fcd9bd', hat: 'crown', hatColor: '#ffd23f', hair: '#ffd23f', speed: 2, accel: 5, handling: 4, weight: 1 },
+  { id: 'pip', name: 'Pip', cls: 'Light', body: '#3d6bff', pants: '#ffffff', skin: '#fce3c8', hat: 'shroom', hatColor: '#ffffff', spots: '#e5322d', speed: 2, accel: 5, handling: 5, weight: 1 },
+  { id: 'dino', name: 'Dino', cls: 'Medium', body: '#6bd13b', pants: '#ffffff', skin: '#6bd13b', hat: 'dino', hatColor: '#e5322d', speed: 3, accel: 4, handling: 3, weight: 2 },
+  { id: 'bruno', name: 'Bruno', cls: 'Heavy', body: '#f0a020', pants: '#3f8f2a', skin: '#f5c542', hat: 'horns', hatColor: '#fff6d8', hair: '#e2462a', speed: 5, accel: 1, handling: 2, weight: 5 },
+  { id: 'moko', name: 'Moko', cls: 'Heavy', body: '#8a4b22', pants: '#8a4b22', skin: '#e2b27f', hat: 'tie', hatColor: '#e5322d', speed: 4, accel: 2, handling: 2, weight: 5 },
+  { id: 'vex', name: 'Vex', cls: 'Heavy', body: '#f5d10c', pants: '#6a2fa0', skin: '#f6c89c', hat: 'cap', hatColor: '#f5d10c', emblem: 'V', speed: 4, accel: 2, handling: 3, weight: 4 }
 ];
 
-const VEHICLES = [
-  { id: 'kart',  name: 'Classic Kart', spd: 3, acc: 3, han: 3, wgt: 3, w: 0.34, desc: 'Balanced and reliable.' },
-  { id: 'bike',  name: 'Speed Bike',   spd: 2, acc: 5, han: 5, wgt: 1, w: 0.2,  desc: 'Snappy handling, drifts hard.' },
-  { id: 'truck', name: 'Monster Truck', spd: 5, acc: 2, han: 1, wgt: 5, w: 0.42, desc: 'Huge top speed. Bulldozes rivals.' },
-  { id: 'pod',   name: 'Hover Pod',    spd: 4, acc: 4, han: 2, wgt: 2, w: 0.3,  desc: 'Fast and floaty. Slides a lot.' }
+export const KARTS = [
+  { id: 'standard', name: 'Standard', desc: 'Balanced all-rounder', speed: 3, accel: 3, handling: 3, weight: 3, offroad: 3, wheel: 0.62, color: null },
+  { id: 'zoomer', name: 'Zoomer', desc: 'Top speed, slow launch', speed: 5, accel: 2, handling: 2, weight: 3, offroad: 2, wheel: 0.55, color: null },
+  { id: 'bike', name: 'Sport Bike', desc: 'Tight drifts, light', speed: 3, accel: 4, handling: 5, weight: 1, offroad: 3, wheel: 0.7, bike: true },
+  { id: 'monster', name: 'Monster', desc: 'Heavy, eats off-road', speed: 4, accel: 2, handling: 2, weight: 5, offroad: 5, wheel: 0.95 }
 ];
 
-const ITEMS = {
-  mushroom: { name: 'Turbo', icon: '🍄' },
-  mushroom3: { name: 'Triple Turbo', icon: '🍄' },
-  banana: { name: 'Banana', icon: '🍌' },
-  gshell: { name: 'Green Shell', icon: '🟢' },
-  rshell: { name: 'Homing Shell', icon: '🔴' },
-  star: { name: 'Star', icon: '⭐' },
-  bolt: { name: 'Lightning', icon: '⚡' },
-  oil: { name: 'Oil Slick', icon: '🛢️' }
-};
+export const CLASSES = [
+  { id: '50', name: '50cc', top: 44, ai: 0.86 },
+  { id: '100', name: '100cc', top: 54, ai: 0.94 },
+  { id: '150', name: '150cc', top: 64, ai: 1.0 }
+];
 
-// ---------- maps ----------
-// section: [enter, hold, leave, curve, hill]  (lengths multiplied by map.scale)
-const MAPS = [
+// Courses: closed Catmull-Rom loops through [x, y, z]. y is elevation.
+// open: [t0, t1, side] ranges without barrier (-1 left, 1 right) -> grass shortcuts.
+// ramps / pads / boxes / coins are track fractions t in [0,1). l is lateral offset (-1..1 of half width).
+export const TRACKS = [
   {
-    id: 'meadows', name: 'Sunny Meadows', diff: 'Easy', scale: 3, grip: 9, decor: 'tree', theme: 'day',
-    desc: 'Rolling hills, gentle bends. Perfect warm-up.',
-    sky: ['#4fb3ff', '#cdeeff'], hills: ['#7fd0a0', '#4fae76'], road: ['#6d6d7a', '#64646f'],
-    grass: ['#4cc35a', '#43b451'], rumble: ['#e63946', '#ffffff'], lane: '#ffffff', fog: '#cdeeff', music: [0, 2, 4, 7, 9], tempo: 132,
-    spec: [[10,20,10,0,0],[15,25,15,3,0],[10,15,10,0,20],[10,20,10,0,-20],[15,30,15,-4,0],[10,20,10,0,0],[20,30,20,4,10],
-      [10,20,10,-3,-10],[15,25,15,-5,0],[10,30,10,0,20],[10,30,10,0,-20],[20,30,20,5,0],[10,20,10,0,0],[15,25,15,-3,0],[10,15,10,3,0],[10,20,10,0,0]],
-    pads: [30, 260, 520, 700], boxes: [90, 320, 560, 780]
+    id: 'sunny', name: 'Sunny Circuit', cup: 'Mushroom', theme: 'meadow', width: 22, laps: 3,
+    pts: [[0,0,0],[0,0,-140],[20,0,-230],[90,4,-270],[170,10,-250],[210,14,-190],[200,12,-120],[150,6,-90],[120,2,-40],[160,0,20],[240,0,40],[300,0,110],[270,0,190],[180,0,210],[80,0,180],[20,0,110]],
+    open: [[0.73, 0.86, -1]], ramps: [0.25], pads: [[0.05, 0], [0.62, -0.4], [0.9, 0.4]], boxes: [0.13, 0.46, 0.77], coins: [[0.18, -0.5, 5], [0.34, 0.5, 5], [0.56, 0, 6], [0.8, -0.4, 5]],
+    sky: ['#4aa8ff', '#cfeeff'], fog: '#cfeeff', ground: '#5cc84a', ground2: '#4db53d', road: '#5f6470', rumble: ['#e5322d', '#ffffff'], wall: 'tires', music: { scale: [0, 2, 4, 7, 9], tempo: 138, root: 262 }
   },
   {
-    id: 'frost', name: 'Frost Peak Run', diff: 'Medium', scale: 3, grip: 2.6, decor: 'pine', theme: 'snow',
-    desc: 'Icy switchbacks. Grip? What grip?',
-    sky: ['#7ea6d4', '#eaf5ff'], hills: ['#d5e6f7', '#aac6e4'], road: ['#8a99b0', '#8391a8'],
-    grass: ['#f6fbff', '#e2eef8'], rumble: ['#2b7de9', '#ffffff'], lane: '#e8f4ff', fog: '#eaf5ff', music: [0, 3, 5, 7, 10], tempo: 118,
-    spec: [[10,20,10,0,0],[15,20,15,4,0],[10,25,10,-5,0],[10,15,10,0,-25],[15,25,15,5,0],[10,10,10,0,25],[15,20,15,-6,0],
-      [10,20,10,0,0],[20,25,20,-4,15],[10,20,10,4,-15],[15,25,15,6,0],[10,25,10,0,0],[15,20,15,-5,0],[10,20,10,3,0],[10,20,10,0,0]],
-    pads: [110, 380, 640], boxes: [70, 300, 520, 730]
+    id: 'frost', name: 'Frosty Peaks', cup: 'Mushroom', theme: 'snow', width: 20, laps: 3,
+    pts: [[0,0,0],[0,6,-120],[-40,16,-220],[-130,24,-250],[-220,20,-200],[-240,12,-110],[-190,6,-40],[-120,2,-30],[-80,0,40],[-120,0,120],[-60,4,190],[40,8,190],[110,6,120],[90,2,40],[40,0,40]],
+    open: [], ramps: [0.2, 0.66], pads: [[0.1, 0], [0.5, 0.3], [0.82, -0.3]], boxes: [0.08, 0.4, 0.7], coins: [[0.28, 0, 6], [0.55, -0.5, 5], [0.9, 0.5, 5]],
+    ice: [[0.44, 0.56]], sky: ['#6c8fc7', '#e8f2ff'], fog: '#e8f2ff', ground: '#f4f8ff', ground2: '#e3ecf8', road: '#7d8aa0', rumble: ['#2b7de9', '#ffffff'], wall: 'snow', music: { scale: [0, 3, 5, 7, 10], tempo: 124, root: 220 }
   },
   {
-    id: 'ember', name: 'Ember Canyon', diff: 'Hard', scale: 3, grip: 8, decor: 'rock', theme: 'lava',
-    desc: 'Big hills over the lava flow. Hold on.',
-    sky: ['#2a0c0e', '#ff8a3d'], hills: ['#5a2018', '#3a120e'], road: ['#4d4356', '#463d4f'],
-    grass: ['#5a2e22', '#4e271d'], rumble: ['#ff7b00', '#2b2b2b'], lane: '#ffcf6a', fog: '#a33a1a', music: [0, 1, 4, 5, 8], tempo: 148,
-    spec: [[10,20,10,0,0],[10,20,10,0,40],[10,20,10,0,-40],[15,25,15,5,0],[10,20,10,0,30],[10,20,10,-4,-30],[15,20,15,-6,0],
-      [10,25,10,0,50],[10,20,10,0,-50],[20,25,20,6,0],[10,15,10,0,0],[15,25,15,-5,20],[10,20,10,4,-20],[15,20,15,-6,0],[10,20,10,0,0]],
-    pads: [60, 340, 590, 720], boxes: [40, 260, 470, 690]
+    id: 'lava', name: 'Bowser Keep', cup: 'Flower', theme: 'lava', width: 18, laps: 3,
+    pts: [[0,0,0],[0,0,-100],[-60,0,-160],[-150,6,-160],[-190,12,-90],[-150,16,-20],[-60,16,0],[-20,10,70],[-80,4,140],[-10,0,200],[90,0,190],[140,4,110],[110,8,40],[60,6,20]],
+    open: [], ramps: [0.49], pads: [[0.03, 0], [0.3, 0], [0.7, 0.5]], boxes: [0.12, 0.42, 0.8], coins: [[0.2, 0, 5], [0.6, 0, 6], [0.9, -0.4, 4]],
+    lavaEdge: true, sky: ['#1a0a0a', '#6b1a0c'], fog: '#3a0e08', ground: '#3b2622', ground2: '#2e1c19', road: '#7a6e6a', rumble: ['#ff7b00', '#222222'], wall: 'castle', music: { scale: [0, 1, 4, 5, 7, 8], tempo: 150, root: 196 }
   },
   {
-    id: 'neon', name: 'Neon Nights City', diff: 'Expert', scale: 2.6, grip: 8, decor: 'city', theme: 'night',
-    desc: 'Tight downtown turns under the skyline.',
-    sky: ['#04060f', '#1b3a5c'], hills: ['#0d2036', '#122c48'], road: ['#3b3f4d', '#353947'],
-    grass: ['#10141f', '#0c1019'], rumble: ['#ff2d95', '#00e5ff'], lane: '#ffe45e', fog: '#12243b', music: [0, 3, 7, 8, 10], tempo: 140,
-    spec: [[10,15,10,0,0],[10,20,10,6,0],[10,10,10,-6,0],[10,20,10,6,0],[15,15,15,0,15],[10,15,10,-6,-15],[10,20,10,5,0],
-      [10,15,10,-5,0],[15,20,15,0,0],[10,20,10,6,10],[10,15,10,-6,-10],[10,20,10,4,0],[15,20,15,-4,0],[10,15,10,6,0],[10,20,10,0,0]],
-    pads: [50, 240, 420, 600], boxes: [30, 200, 380, 560]
+    id: 'rainbow', name: 'Rainbow Road', cup: 'Flower', theme: 'rainbow', width: 20, laps: 3,
+    pts: [[0,40,0],[0,44,-150],[60,54,-240],[170,64,-240],[230,56,-160],[190,44,-70],[110,40,-60],[70,46,20],[120,54,100],[60,60,180],[-60,54,190],[-130,46,120],[-110,40,40],[-50,36,30]],
+    open: [], noWalls: [[0.3, 0.42], [0.72, 0.8]], ramps: [0.43, 0.81], pads: [[0.06, 0], [0.22, -0.4], [0.22, 0.4], [0.58, 0], [0.9, 0]], boxes: [0.15, 0.5, 0.86], coins: [[0.1, 0, 6], [0.36, 0, 6], [0.65, 0.4, 5]],
+    fall: true, sky: ['#05010f', '#1b0b3a'], fog: '#0d0520', ground: null, road: 'rainbow', rumble: ['#ffffff', '#ffe066'], wall: 'neon', music: { scale: [0, 2, 4, 7, 11], tempo: 146, root: 294 }
   }
 ];
 
-const BOT_NAMES = ['Dash', 'Turbo', 'Sprocket', 'Nova', 'Gizmo', 'Rocket', 'Vex', 'Mango', 'Pixel', 'Ziggy', 'Comet', 'Torque'];
+export const CUPS = [
+  { id: 'Mushroom', name: 'Mushroom Cup', icon: '🍄', tracks: ['sunny', 'frost'] },
+  { id: 'Flower', name: 'Flower Cup', icon: '🌸', tracks: ['lava', 'rainbow'] },
+  { id: 'Special', name: 'Star Cup', icon: '⭐', tracks: ['sunny', 'frost', 'lava', 'rainbow'] }
+];
+
+export const ITEMS = {
+  banana: { name: 'Banana', icon: '🍌' },
+  green: { name: 'Green Shell', icon: '🟢' },
+  red: { name: 'Red Shell', icon: '🔴' },
+  triple: { name: 'Triple Shrooms', icon: '🍄' },
+  mushroom: { name: 'Mushroom', icon: '🍄' },
+  star: { name: 'Star', icon: '⭐' },
+  bolt: { name: 'Lightning', icon: '⚡' },
+  blue: { name: 'Spiny Shell', icon: '🔵' },
+  coin: { name: 'Coin', icon: '🪙' }
+};
+
+// Item odds by race position bucket (front -> back), weights per item.
+export const ODDS = [
+  { banana: 40, green: 30, coin: 20, mushroom: 10 },
+  { banana: 20, green: 25, red: 25, mushroom: 20, coin: 10 },
+  { green: 15, red: 30, mushroom: 25, triple: 20, star: 5, blue: 5 },
+  { red: 20, triple: 35, star: 20, bolt: 10, blue: 10, mushroom: 5 }
+];
+
+export const POINTS = [15, 12, 10, 8, 6, 4, 2, 1];

@@ -1,17 +1,23 @@
-# Kart Rush · Pocket Grand Prix
+# Kart Rush Grand Prix
 
-An original, actual 3D WebGL kart racer built with Three.js. Eight racers, four distinct vehicles, four sculpted 3D tracks, seven computer-controlled rivals, three-lap Grand Prix, power-ups, drifting and mini-turbos, procedural sound, and local best times. All characters, environments and meshes are procedural originals; no Nintendo assets or trademarks are used.
+An original 3D arcade kart racer for the browser, built with Three.js. No build step, no server.
 
-## Play
+## What's in it
 
-Open `index.html` in a browser, or serve this folder with `npx serve .` and visit the URL shown. Desktop: **W / Up** accelerate, **A/D or Left/Right** steer, **S / Down** brake, **Shift** drift, **Space** use item, **P/Escape** pause, **M** sound. On touch devices, acceleration is automatic; steering, drift and item buttons appear on screen.
+- **8 racers** with weight classes (light / medium / heavy), each with their own stats, driving **6 karts and bikes**.
+- **4 courses** across 2 cups plus an all-course Star Cup: Sunshine Circuit, Frosty Peaks (ice patches), Bowser Keep (lava edges), and Rainbow Road (no rails, fall off and respawn).
+- **Grand Prix** (points and trophies), **Single Race** and **Time Trial** (3 mushrooms, ghost-free).
+- **Driving**: hop-drift, 3 mini-turbo tiers (blue, orange, purple sparks), a rocket start, ramps with trick boosts, dash pads, off-road slowdown, and walls.
+- **Items**, weighted by position: banana, green shell, homing red shell, triple mushrooms, star, lightning, spiny shell, and coins (coins add top speed).
+- **CPU rivals** take racing lines, drift corners for mini-turbos, dodge hazards and use items, with mild rubber-banding.
+- Procedural toon models, particles, per-course music, engine and drift sound, a minimap, and saved best times and trophies.
 
-## Deployment
+## Controls
 
-This repository is a zero-build static site, deployed from the repository root to Vercel. No environment variables required. Opponents are seven local CPU racers; there is **no online multiplayer** or server-backed rooms.
+Desktop: **↑/W** gas · **←→/AD** steer · **↓/S** brake · hold **Space/Shift** while turning to drift, release for mini-turbo · **E/X** item (hold ↓ to throw backwards) · **C** look back · **P** pause. Gamepads work.
 
-All source code and artwork are original; optional fonts load from Google Fonts with local fallbacks.
+Touch: auto-gas, analog steer pad, DRIFT / ITEM / BRAKE buttons. Tap DRIFT mid-air off a ramp to do a trick.
 
-## 3D implementation
+## Run / deploy
 
-The browser renders a genuine WebGL scene with a chase camera, 3D track ribbons and elevation, dynamic karts/characters, scenery and item meshes. `js/vendor/three.module.js` is a locally vendored copy of Three.js r170 (MIT); the game works without a JavaScript CDN or a build step. Requires WebGL. Built for phone-sized landscape viewports as well as desktop browsers.
+Serve the folder (`npx serve .`) or deploy the repo root to Vercel as a static site. Opponents are local CPU racers; there is no online multiplayer.

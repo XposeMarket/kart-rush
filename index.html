@@ -1,9 +1,94 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"><meta name="theme-color" content="#121b27"><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23121b27'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-size='45'%3E%F0%9F%8F%8E%EF%B8%8F%3C/text%3E%3C/svg%3E"><title>Kart Rush · Pocket Grand Prix</title><link rel="stylesheet" href="style.css"></head><body>
-<main id="app"><canvas id="race" aria-label="Kart Rush racing game"></canvas><div id="flash"></div>
-<header id="hud" class="hidden"><div class="hud-left"><strong id="place">1st</strong><span id="lap">LAP 1 / 3</span><span id="clock">00:00.00</span></div><div class="hud-right"><span id="speed">0 <small>KM/H</small></span><button id="pause" aria-label="Pause">Ⅱ</button><button id="sound" aria-label="Toggle sound">♪</button></div></header>
-<div id="item-hud" class="hidden"><span id="item-icon">?</span><small id="item-name">ITEM</small><kbd>SPACE</kbd></div><div id="toast"></div><div id="countdown" class="hidden"></div>
-<section id="menu" class="panel"><div class="brand"><span class="eyebrow">★ POCKET GRAND PRIX ★</span><h1>KART <em>RUSH</em></h1><p>Pick your racer. Own the road.</p></div><div class="selectors"><div class="select-block"><div class="select-head"><h2>01 <span>RACER</span></h2><span id="character-info"></span></div><div id="characters" class="choice-grid characters"></div></div><div class="select-block"><div class="select-head"><h2>02 <span>RIDE</span></h2><span id="vehicle-info"></span></div><div id="vehicles" class="choice-grid vehicles"></div></div><div class="select-block"><div class="select-head"><h2>03 <span>TRACK</span></h2><span id="map-info"></span></div><div id="maps" class="choice-grid maps"></div></div></div><div class="menu-bottom"><div id="stats"></div><button id="start" class="primary">START RACE <span>↗</span></button></div><p class="menu-foot">3 laps · 7 CPU rivals · 8 power-ups · no downloads</p></section>
-<section id="overlay" class="panel hidden"><span id="overlay-tag" class="eyebrow"></span><h2 id="overlay-title"></h2><p id="overlay-text"></p><div id="results"></div><div class="overlay-actions"><button id="resume" class="primary">RESUME</button><button id="retry">RACE AGAIN</button><button id="back">CHANGE SETUP</button></div></section>
-<div id="touch" class="hidden"><div class="touch-left"><button data-control="left" aria-label="Steer left">◀</button><button data-control="right" aria-label="Steer right">▶</button></div><div class="touch-right"><button data-control="item" class="use" aria-label="Use item">ITEM</button><button data-control="drift" class="drift" aria-label="Drift">DRIFT</button><button data-control="gas" class="gas" aria-label="Accelerate">GO</button></div></div>
-</main><script src="js/data.js"></script><script src="js/audio.js"></script><script type="module" src="js/three-game.js"></script></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#e5322d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Kart Rush Grand Prix</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23e5322d'/%3E%3Ctext x='32' y='46' text-anchor='middle' font-size='40' font-family='Arial Black' fill='white'%3EK%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app">
+  <canvas id="race" aria-label="Kart Rush"></canvas>
+  <div id="flash"></div>
+
+  <!-- In-race HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-tl">
+      <div id="itembox"><div id="item-reel"><span id="item-icon"></span></div><span id="item-count"></span></div>
+      <div id="coins"><i></i><b id="coin-count">0</b></div>
+    </div>
+    <div class="hud-tr"><div id="lap">LAP <b>1</b>/3</div><div id="clock">0:00.000</div><button id="pause-btn" aria-label="Pause">❚❚</button></div>
+    <canvas id="minimap" width="220" height="220"></canvas>
+    <div id="place"><b>1</b><sup>st</sup></div>
+    <div id="drift-meter"><i></i></div>
+  </div>
+  <div id="banner"></div>
+  <div id="toast"></div>
+  <div id="lights" class="hidden"><i></i><i></i><i></i></div>
+
+  <!-- Touch controls -->
+  <div id="touch" class="hidden">
+    <div class="steer" data-touch="steer"><div class="track-l">◀</div><div class="knob"></div><div class="track-r">▶</div></div>
+    <div class="btns">
+      <button data-touch-btn="item" class="t-item">ITEM</button>
+      <button data-touch-btn="brake" class="t-brake">BRAKE</button>
+      <button data-touch-btn="drift" class="t-drift">DRIFT</button>
+    </div>
+  </div>
+
+  <!-- Menus -->
+  <section id="menu">
+    <div class="screen active" data-screen="title">
+      <div class="logo"><span class="k">KART</span><span class="r">RUSH</span><em>GRAND PRIX</em></div>
+      <div class="title-actions">
+        <button class="big" data-go="gp">GRAND PRIX</button>
+        <button class="big alt" data-go="vs">SINGLE RACE</button>
+        <button class="big ghost" data-go="tt">TIME TRIAL</button>
+      </div>
+      <p class="hint" id="controls-hint"></p>
+    </div>
+
+    <div class="screen" data-screen="cc">
+      <h2 class="step">CHOOSE ENGINE CLASS</h2>
+      <div id="cc-list" class="row-list"></div>
+      <div class="nav"><button class="back" data-back>BACK</button></div>
+    </div>
+
+    <div class="screen side" data-screen="driver">
+      <h2 class="step">SELECT DRIVER</h2>
+      <div id="driver-grid" class="grid"></div>
+      <div class="stat-card" id="driver-stats"></div>
+      <div class="nav"><button class="back" data-back>BACK</button><button class="ok" data-next>OK</button></div>
+    </div>
+
+    <div class="screen side" data-screen="kart">
+      <h2 class="step">SELECT KART</h2>
+      <div id="kart-grid" class="grid kart"></div>
+      <div class="stat-card" id="kart-stats"></div>
+      <div class="nav"><button class="back" data-back>BACK</button><button class="ok" data-next>OK</button></div>
+    </div>
+
+    <div class="screen" data-screen="course">
+      <h2 class="step" id="course-title">SELECT CUP</h2>
+      <div id="course-grid" class="course-grid"></div>
+      <div class="nav"><button class="back" data-back>BACK</button></div>
+    </div>
+  </section>
+
+  <section id="overlay" class="hidden">
+    <div class="card">
+      <h2 id="ov-title">PAUSED</h2>
+      <p id="ov-sub"></p>
+      <div id="ov-table"></div>
+      <div id="ov-actions"></div>
+    </div>
+  </section>
+
+  <div id="loading" class="hidden">LOADING COURSE…</div>
+</main>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
