@@ -8,6 +8,7 @@ import { createItems } from './items.js';
 import { createFx } from './fx.js';
 import { createHazards } from './hazards.js';
 import { buildDecor } from './decor.js';
+import { createGfx } from './gfx.js';
 import { sfx, engine, playMusic, stopMusic, setMuted, isMuted, initAudio } from './audio.js';
 import { readInput, takeItem, takePause, resetInput, bindTouch, isTouch } from './input.js';
 import { createMenus, hud, createMinimap, fmt } from './ui.js';
@@ -24,8 +25,10 @@ const renderer = new THREE.WebGLRenderer({ canvas: $('race'), antialias: true, p
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.6 : 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const gfx = createGfx(renderer, isTouch);
+if (gfx.quality === 'low') renderer.setPixelRatio(1);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 2400);
-function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 82 : 68; camera.updateProjectionMatrix(); }
+function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); gfx.resize(w, h); camera.aspect = w / h; camera.fov = w < h ? 82 : 68; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 
 let scene, track, scenery, decor, fx, items, hazards, minimap, karts = [], player, ais = [];
@@ -56,6 +59,8 @@ function buildRace(def) {
   scene = new THREE.Scene();
   track = buildTrack(def); scene.add(track.group);
   scenery = buildScenery(track, scene);
+  scene.environment = gfx.envTex; scene.environmentIntensity = def.theme === 'rainbow' ? 0.22 : def.theme === 'lava' ? 0.25 : 0.45;
+  scenery.sun.shadow.mapSize.set(gfx.shadowSize, gfx.shadowSize); gfx.setTheme(def.theme);
   decor = buildDecor(track, scene);
   fx = createFx(scene);
   items = createItems(scene, track, fx, (k, name) => { if (k === player) sfx[name] && sfx[name](); });
@@ -284,7 +289,10 @@ function frame(now) {
     const sub = Math.ceil(dt * timeScale / 0.025);
     for (let i = 0; i < sub; i++) step(dt * timeScale / sub);
   }
-  renderer.render(scene, camera);
+  const racing = player && (state === 'race' || state === 'finish');
+  const speedK = racing ? Math.min(1, Math.max(0, (player.speed / player.top - 0.82) * 4)) : 0;
+  const boostK = racing && player.boost > 0 ? 1 : 0;
+  gfx.render(scene, camera, now / 1000, Math.max(speedK, boostK * 0.8), boostK);
 }
 requestAnimationFrame(frame);
-window.__kr = { set timeScale(v) { timeScale = v; }, get state() { return state; }, get player() { return player; }, get karts() { return karts; }, get track() { return track; }, startCup };
+window.__kr = { snapCam() { updateCamera(1); camPos.copy(camera.position); }, set timeScale(v) { timeScale = v; }, get state() { return state; }, get player() { return player; }, get karts() { return karts; }, get track() { return track; }, startCup };

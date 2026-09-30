@@ -15,17 +15,27 @@ function canvasTex(w, h, draw, repeat) {
 }
 
 function asphalt(base) {
-  return canvasTex(128, 256, (g, w, h) => {
+  return canvasTex(512, 512, (g, w, h) => {
     g.fillStyle = base; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 2600; i++) { const v = Math.random() * 40 - 20; g.fillStyle = `rgba(${v > 0 ? 255 : 0},${v > 0 ? 255 : 0},${v > 0 ? 255 : 0},${Math.abs(v) / 260})`; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
-    g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(3, 0, 3, h); g.fillRect(w - 6, 0, 3, h);
+    // Large soft patches (worn / resurfaced asphalt), then fine aggregate grain.
+    for (let i = 0; i < 40; i++) { const x = Math.random() * w, y = Math.random() * h, r = 30 + Math.random() * 90, gr = g.createRadialGradient(x, y, 0, x, y, r), d = Math.random() < 0.5; gr.addColorStop(0, d ? 'rgba(0,0,0,.09)' : 'rgba(255,255,255,.06)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+    for (let i = 0; i < 16000; i++) { const v = Math.random(); g.fillStyle = v < 0.5 ? `rgba(0,0,0,${0.03 + Math.random() * 0.06})` : `rgba(255,255,255,${0.02 + Math.random() * 0.05})`; const s = Math.random() < 0.92 ? 1 : 2; g.fillRect(Math.random() * w, Math.random() * h, s, s); }
+    // Tyre-worn racing line darkening down the middle.
+    const lg = g.createLinearGradient(0, 0, w, 0); lg.addColorStop(0.2, 'rgba(0,0,0,0)'); lg.addColorStop(0.5, 'rgba(0,0,0,.08)'); lg.addColorStop(0.8, 'rgba(0,0,0,0)'); g.fillStyle = lg; g.fillRect(0, 0, w, h);
+    // Edge lines + dashed center line.
+    g.fillStyle = 'rgba(255,255,255,.75)'; g.fillRect(10, 0, 7, h); g.fillRect(w - 17, 0, 7, h);
+    g.fillStyle = 'rgba(255,255,255,.55)'; for (let y = 0; y < h; y += 128) g.fillRect(w / 2 - 4, y + 20, 8, 64);
+    // A few tar-sealed cracks.
+    g.strokeStyle = 'rgba(0,0,0,.22)'; g.lineWidth = 2; for (let i = 0; i < 6; i++) { let x = 40 + Math.random() * (w - 80), y = Math.random() * h; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (Math.random() - 0.5) * 30; y += 12 + Math.random() * 14; g.lineTo(x, y); } g.stroke(); }
   });
 }
 
 export function grassTex(a, b) {
-  return canvasTex(256, 256, (g, w, h) => {
-    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? a : b; g.fillRect(0, i * 32, w, 32); }
-    for (let i = 0; i < 1400; i++) { g.fillStyle = `rgba(0,40,0,${Math.random() * 0.08})`; g.fillRect(Math.random() * w, Math.random() * h, 2, 3); }
+  return canvasTex(512, 512, (g, w, h) => {
+    // Mowed stripes (soft-edged), then blades and clover speckle.
+    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? a : b; g.fillRect(0, i * 64, w, 64); }
+    const fade = g.createLinearGradient(0, 0, 0, 64); fade.addColorStop(0, 'rgba(255,255,255,.05)'); fade.addColorStop(1, 'rgba(0,0,0,.05)'); g.fillStyle = fade; for (let i = 0; i < 8; i++) { g.save(); g.translate(0, i * 64); g.fillRect(0, 0, w, 64); g.restore(); }
+    for (let i = 0; i < 9000; i++) { const x = Math.random() * w, y = Math.random() * h; g.strokeStyle = Math.random() < 0.5 ? `rgba(0,50,0,${0.06 + Math.random() * 0.1})` : `rgba(255,255,200,${0.04 + Math.random() * 0.08})`; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 3, y - 3 - Math.random() * 4); g.stroke(); }
   });
 }
 
@@ -112,13 +122,13 @@ export function buildTrack(def) {
   // Road surface.
   let roadMat;
   if (def.road === 'rainbow') {
-    roadMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.1, emissive: '#ffffff', emissiveIntensity: 0.18, transparent: true, opacity: 0.93, side: THREE.DoubleSide });
+    roadMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.1, emissive: '#3a2a50', emissiveIntensity: 0.5, envMapIntensity: 0.6, transparent: true, opacity: 0.93, side: THREE.DoubleSide });
     const c = new THREE.Color();
     ribbon([{ lat: -halfW }, { lat: -halfW / 3 }, { lat: halfW / 3 }, { lat: halfW }], roadMat, { color: (i, k) => c.setHSL(((i / 14) + k * 0.02) % 1, 0.95, 0.58) });
   } else {
     const tex = asphalt(def.road);
-    roadMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.92 });
-    ribbon([{ lat: -halfW }, { lat: halfW }], roadMat, { vlen: 18 });
+    roadMat = new THREE.MeshStandardMaterial({ map: tex, roughness: def.theme === 'snow' ? 0.55 : 0.85, metalness: 0.02, envMapIntensity: def.theme === 'snow' ? 0.8 : 0.35 });
+    ribbon([{ lat: -halfW }, { lat: halfW }], roadMat, { vlen: 26 });
   }
   // Rumble strips with alternating colors.
   const ca = new THREE.Color(def.rumble[0]), cb = new THREE.Color(def.rumble[1]);

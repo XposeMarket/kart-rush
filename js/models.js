@@ -1,7 +1,20 @@
 import * as THREE from './vendor/three.module.js';
 
 // Chunky toon-style karts and drivers built from primitives with rounded shapes.
-const toon = (color, extra = {}) => new THREE.MeshToonMaterial({ color, ...extra });
+let gradient;
+function toonGradient() {
+  if (gradient) return gradient;
+  const d = new Uint8Array([110, 110, 110, 255, 190, 190, 190, 255, 255, 255, 255, 255]);
+  gradient = new THREE.DataTexture(d, 3, 1, THREE.RGBAFormat); gradient.minFilter = gradient.magFilter = THREE.NearestFilter; gradient.needsUpdate = true; return gradient;
+}
+const toon = (color, extra = {}) => new THREE.MeshToonMaterial({ color, gradientMap: toonGradient(), ...extra });
+// Inverted-hull ink outline: back faces pushed out along normals, drawn in dark ink.
+const inkMat = new THREE.MeshBasicMaterial({ color: '#15121c', side: THREE.BackSide });
+inkMat.onBeforeCompile = s => { s.vertexShader = s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normal * 0.035;'); };
+export function addOutlines(root) {
+  const list = []; root.traverse(o => { if (o.isMesh && !o.userData.noInk && !o.material.transparent && o.geometry.attributes.normal) list.push(o); });
+  for (const o of list) { const hull = new THREE.Mesh(o.geometry, inkMat); hull.userData.noInk = true; hull.raycast = () => { }; o.add(hull); }
+}
 const std = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.15, ...extra });
 const cache = {};
 const mat = (key, make) => cache[key] || (cache[key] = Object.assign(make(), { userData: { shared: true } }));
@@ -86,7 +99,8 @@ export function buildKart(kartDef, ch) {
   const tilt = new THREE.Group();       // banking/pitch/hop/spin visual
   root.add(tilt);
   const color = ch.body;
-  const paint = std(color, { roughness: 0.3, metalness: 0.35 });
+  // Candy clear-coat paint: glossy highlight layer reflecting the environment map.
+  const paint = new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.2 });
   const dark = mat('darkTrim', () => std('#26282e', { roughness: 0.6 }));
   const wheels = [];
   if (kartDef.bike) {
@@ -120,7 +134,14 @@ export function buildKart(kartDef, ch) {
   // Blob shadow keeps the kart grounded even when shadows are off.
   const blob = new THREE.Mesh(new THREE.CircleGeometry(1.5, 20), mat('blob', () => new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.28, depthWrite: false })));
   blob.rotation.x = -Math.PI / 2; blob.scale.set(0.95, 1.35, 1); blob.position.y = 0.04; root.add(blob);
-  tilt.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  // Headlights: small emissive discs that catch the bloom pass.
+  if (!kartDef.bike) {
+    const W = kartDef.id === 'monster' ? 2.3 : 2.05, L = kartDef.id === 'zoomer' ? 3.3 : 2.9;
+    const lamp = mat('lamp', () => new THREE.MeshBasicMaterial({ color: '#fff6c8', toneMapped: false }));
+    for (const s of [-1, 1]) { const l = new THREE.Mesh(new THREE.CircleGeometry(0.14, 12), lamp); l.position.set(s * W * 0.3, kartDef.wheel * 0.95 + 0.12, L / 2 + 0.23); l.userData.noInk = true; tilt.add(l); }
+  }
+  addOutlines(tilt);
+  tilt.traverse(o => { if (o.isMesh && !o.userData.noInk) o.castShadow = true; });
   root.userData = { tilt, wheels, driver, exhaust, blob, bike: !!kartDef.bike };
   return root;
 }
