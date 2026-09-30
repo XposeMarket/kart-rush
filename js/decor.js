@@ -1,4 +1,5 @@
 import * as THREE from './vendor/three.module.js';
+import { mergeAll } from './merge.js';
 
 // Extra set dressing that makes each course feel alive: chevron turn signs on the outside
 // of sharp corners, grandstands with a crowd, arches over the road, and animated
@@ -105,13 +106,13 @@ export function buildDecor(track, scene) {
     // Floating ? blocks and hot air balloons.
     const qTex = canvasTex(64, 64, (c) => { c.fillStyle = '#ffb31a'; c.fillRect(0, 0, 64, 64); c.strokeStyle = '#8a4a00'; c.lineWidth = 5; c.strokeRect(3, 3, 58, 58); c.fillStyle = '#fff'; c.font = '900 44px sans-serif'; c.textAlign = 'center'; c.fillText('?', 32, 48); });
     const qMat = new THREE.MeshStandardMaterial({ map: qTex, roughness: 0.5 });
-    scatterOff(10, 4, 26).forEach((p, n) => { const b = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), qMat); b.position.copy(p).setY(9); b.castShadow = true; g.add(b); anim.push(tm => { b.rotation.y = tm + n; b.position.y = 9 + Math.sin(tm * 1.5 + n) * 0.8; }); });
+    scatterOff(10, 4, 26).forEach((p, n) => { const b = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), qMat); b.position.copy(p).setY(9); b.castShadow = true; b.userData.dyn = true; g.add(b); anim.push(tm => { b.rotation.y = tm + n; b.position.y = 9 + Math.sin(tm * 1.5 + n) * 0.8; }); });
     const balloonCols = ['#e5322d', '#ffd23f', '#3d6bff', '#2fae3f', '#ff7fb7'];
     for (let k = 0; k < 7; k++) {
       const bal = new THREE.Group(), a = k / 7 * 6.28, r = 180 + Math.random() * 160;
       const env = new THREE.Mesh(new THREE.SphereGeometry(9, 16, 12), toon(balloonCols[k % 5])); env.scale.y = 1.2; bal.add(env);
       const basket = new THREE.Mesh(new THREE.BoxGeometry(3, 2.4, 3), toon('#8b5a2b')); basket.position.y = -14; bal.add(basket);
-      bal.position.set(Math.cos(a) * r + 150, 70 + Math.random() * 40, Math.sin(a) * r); g.add(bal);
+      bal.position.set(Math.cos(a) * r + 150, 70 + Math.random() * 40, Math.sin(a) * r); bal.userData.dyn = true; g.add(bal);
       anim.push(tm => { bal.position.y += Math.sin(tm * 0.4 + k) * 0.02; bal.rotation.y = tm * 0.1; });
     }
   } else if (theme === 'snow') {
@@ -135,7 +136,7 @@ export function buildDecor(track, scene) {
     scatterOff(16, 8, 34).forEach((p, n) => {
       const fb = new THREE.Group(); fb.add(new THREE.Mesh(new THREE.SphereGeometry(1.3, 12, 8), fireMat));
       for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), toon('#111')); e.position.set(s * 0.45, 0.3, 1.1); fb.add(e); }
-      fb.position.copy(p); g.add(fb);
+      fb.position.copy(p); fb.userData.dyn = true; g.add(fb);
       anim.push(tm => { const c = ((tm + n * 0.37) % 3) / 3, y = c < 0.6 ? Math.sin(c / 0.6 * Math.PI) * 16 : -3; fb.position.y = y; fb.rotation.x = c < 0.3 ? 0 : Math.PI; });
     });
     for (let i = 0; i < N; i += 24) {
@@ -143,7 +144,7 @@ export function buildDecor(track, scene) {
       for (const side of [-1, 1]) {
         const lat = side * (edge + 1.2), y = t.surfaceY(s, side * edge);
         const torch = new THREE.Group(); torch.position.set(s.p.x + s.r.x * lat, y + 2.3, s.p.z + s.r.z * lat);
-        const flame = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.2, 8), fireMat); flame.position.y = 0.6; torch.add(flame);
+        const flame = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.2, 8), fireMat); flame.position.y = 0.6; flame.userData.dyn = true; torch.add(flame);
         torch.add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.15, 0.8, 8), toon('#2a2020')));
         g.add(torch); anim.push(tm => { flame.scale.set(1, 0.8 + Math.sin(tm * 14 + i) * 0.25, 1); });
       }
@@ -155,12 +156,14 @@ export function buildDecor(track, scene) {
     const starMat = new THREE.MeshBasicMaterial({ color: '#ffe066', toneMapped: false });
     for (let k = 0; k < 40; k++) {
       const s = samples[Math.floor(Math.random() * N)], lat = (Math.random() < 0.5 ? -1 : 1) * (edge + 8 + Math.random() * 40);
-      const st = new THREE.Mesh(starGeo, starMat); st.position.set(s.p.x + s.r.x * lat, s.p.y - 10 + Math.random() * 30, s.p.z + s.r.z * lat); g.add(st);
+      const st = new THREE.Mesh(starGeo, starMat); st.position.set(s.p.x + s.r.x * lat, s.p.y - 10 + Math.random() * 30, s.p.z + s.r.z * lat); st.userData.dyn = true; g.add(st);
       anim.push(tm => { st.rotation.y = tm * 1.5 + k; });
     }
-    const comets = []; for (let k = 0; k < 4; k++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 1.2, 40, 8).rotateZ(Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.8, toneMapped: false })); g.add(c); comets.push(c); }
+    const comets = []; for (let k = 0; k < 4; k++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 1.2, 40, 8).rotateZ(Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.8, toneMapped: false })); c.userData.dyn = true; g.add(c); comets.push(c); }
     anim.push(tm => comets.forEach((c, k) => { const u = ((tm * 0.12 + k * 0.25) % 1); c.position.set(-700 + u * 1400, 380 - u * 200 + k * 40, -500 + k * 250); c.rotation.z = -0.14; }));
   }
 
+  // Batch all static set dressing (signs, posts, arches, stands, props) per material and per 120 m cell.
+  mergeAll(g, () => true, 120);
   return { group: g, update(time, dt, focus) { for (const f of anim) f(time, dt, focus); } };
 }

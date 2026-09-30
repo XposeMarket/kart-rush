@@ -183,7 +183,7 @@ export class Kart {
     u.tilt.position.y = this.hopT > 0 ? Math.sin(this.hopT / 0.2 * Math.PI) * 0.1 : 0;
     const scale = this.shrink > 0 ? 0.55 : 1; const sq = this.squash > 0 ? 0.35 : 1;
     m.scale.set(scale, scale * sq, scale);
-    for (const w of u.wheels) w.children.forEach(c => { if (c.geometry && c.geometry.type !== 'CylinderGeometry') c.rotation.x += this.speed * dt * 1.6; });
+    for (const w of u.wheels) w.rotation.x += this.speed * dt * 1.6;
     u.driver.rotation.y = -this.steerVis * 0.3; u.driver.rotation.z = this.steerVis * 0.08;
     const ground = t.groundAt(this.idx, this.lat);
     u.blob.position.y = (isFinite(ground) ? ground : -999) - this.pos.y + 0.05; u.blob.visible = isFinite(ground) && this.pos.y - ground < 12;

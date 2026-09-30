@@ -44,9 +44,13 @@ export function createItems(scene, track, fx, sound) {
   });
   const coinMat = new THREE.MeshStandardMaterial({ color: '#ffcf1a', metalness: 0.9, roughness: 0.2, emissive: '#8a5a00', emissiveIntensity: 0.4 });
   const coinGeo = new THREE.CylinderGeometry(0.7, 0.7, 0.16, 20).rotateX(Math.PI / 2);
+  // All coins are one instanced mesh (one draw call); hidden coins get a zero-scale matrix.
   (t.def.coins || []).forEach(([u, l, n]) => {
-    for (let k = 0; k < n; k++) { const i = (t.idxOf(u) + k * 3) % t.N, lat = l * t.halfW * 0.7; const m = new THREE.Mesh(coinGeo, coinMat); m.position.copy(t.pointAt(i, lat, 1.1)); m.castShadow = true; group.add(m); coins.push({ m, i, lat, cool: 0 }); }
+    for (let k = 0; k < n; k++) { const i = (t.idxOf(u) + k * 3) % t.N, lat = l * t.halfW * 0.7; coins.push({ m: { position: t.pointAt(i, lat, 1.1) }, i, lat, cool: 0 }); }
   });
+  const coinMesh = new THREE.InstancedMesh(coinGeo, coinMat, Math.max(1, coins.length));
+  coinMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); coinMesh.castShadow = true; coinMesh.frustumCulled = false; coinMesh.count = coins.length; group.add(coinMesh);
+  const co = new THREE.Object3D();
 
   function roll(kart, karts) {
     const n = karts.length, bucket = Math.min(3, Math.floor((kart.place - 1) / Math.max(1, n / 4)));
@@ -109,8 +113,10 @@ export function createItems(scene, track, fx, sound) {
         break;
       }
     });
-    coins.forEach(c => {
-      c.cool = Math.max(0, c.cool - dt); c.m.visible = c.cool <= 0; c.m.rotation.y = time * 3;
+    coins.forEach((c, n) => {
+      c.cool = Math.max(0, c.cool - dt);
+      co.position.copy(c.m.position); co.rotation.set(0, time * 3, 0); co.scale.setScalar(c.cool <= 0 ? 1 : 0); co.updateMatrix(); coinMesh.setMatrixAt(n, co.matrix);
+      if (n === coins.length - 1) coinMesh.instanceMatrix.needsUpdate = true;
       if (c.cool > 0) return;
       for (const k of karts) if (!k.falling && k.pos.distanceToSquared(c.m.position) < 4.5) { c.cool = 12; if (k.coins < 10) k.coins++; events.push({ type: 'coin', kart: k }); break; }
     });

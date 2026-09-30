@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.js';
 import { grassTex } from './track.js';
+import { mergeAll } from './merge.js';
 
 // Theme set dressing: sky dome, ground, lights, instanced props placed safely off-track.
 // Gradient sky with a soft sun disc + halo and horizon haze. Follows the camera so it never clips.
@@ -123,7 +124,8 @@ export function buildScenery(track, scene) {
     g.add(instanced(new THREE.DodecahedronGeometry(3, 0).translate(0, 1.5, 0), rock, pts));
     const brick = new THREE.MeshStandardMaterial({ color: '#5c4f4b', roughness: 0.9 });
     for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, r = 700; const t = new THREE.Mesh(new THREE.CylinderGeometry(40, 50, 260, 8), brick); t.position.set(Math.cos(a) * r, 110, Math.sin(a) * r); g.add(t); const top = new THREE.Mesh(new THREE.ConeGeometry(55, 80, 8), new THREE.MeshStandardMaterial({ color: '#4a1010' })); top.position.set(t.position.x, 280, t.position.z); g.add(top); }
-    const glow = new THREE.PointLight('#ff5a1a', 2, 600, 1.2); glow.position.set(0, 40, 0); g.add(glow);
+    // A scene-wide point light costs every lit pixel; the hemisphere light already carries the lava glow.
+    if (track.def.hiLights !== false && scene.userData.pointLights) { const glow = new THREE.PointLight('#ff5a1a', 2, 600, 1.2); glow.position.set(0, 40, 0); g.add(glow); }
   } else if (theme === 'rainbow') {
     const starGeo = new THREE.BufferGeometry(), pos = [];
     for (let k = 0; k < 3000; k++) { const v = new THREE.Vector3().randomDirection().multiplyScalar(900 + Math.random() * 700); pos.push(v.x, Math.abs(v.y) * 0.9 - 200, v.z); }
@@ -132,6 +134,10 @@ export function buildScenery(track, scene) {
     const planet = new THREE.Mesh(new THREE.SphereGeometry(160, 32, 24), new THREE.MeshStandardMaterial({ color: '#5a8bff', emissive: '#1a2a7a', roughness: 0.7 })); planet.position.set(-600, 150, -900); g.add(planet);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(260, 14, 8, 64), new THREE.MeshBasicMaterial({ color: '#ffcf6a', fog: false })); ring.position.copy(planet.position); ring.rotation.x = 1.2; g.add(ring);
   }
+  // Batch static meshes (pipes, snowmen, towers, hills, mountains...) per material and per 150 m cell.
+  for (const k of ['sky', 'lava', 'water', 'clouds']) if (g.userData[k]) g.userData[k].userData.dyn = true;
+  mergeAll(g, () => true, 150);
+  if (g.userData.clouds) mergeAll(g.userData.clouds, () => true, 400);
   scene.add(g);
   return { group: g, sun, update(t, focus) {
     sun.position.set(focus.x + 60, focus.y + 120, focus.z + 40); sun.target.position.copy(focus);

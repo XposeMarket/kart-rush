@@ -1,4 +1,8 @@
 import * as THREE from './vendor/three.module.js';
+import { mergeAll } from './merge.js';
+
+// Set by main.js from the graphics quality: clear-coat paint is only worth it on 'high'.
+export const modelOpts = { physical: true, pointLights: true };
 
 // Chunky toon-style karts and drivers built from primitives with rounded shapes.
 let gradient;
@@ -100,7 +104,9 @@ export function buildKart(kartDef, ch) {
   root.add(tilt);
   const color = ch.body;
   // Candy clear-coat paint: glossy highlight layer reflecting the environment map.
-  const paint = new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.2 });
+  const paint = modelOpts.physical
+    ? new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.2 })
+    : new THREE.MeshStandardMaterial({ color, roughness: 0.22, metalness: 0.3, envMapIntensity: 1.4 });
   const dark = mat('darkTrim', () => std('#26282e', { roughness: 0.6 }));
   const wheels = [];
   if (kartDef.bike) {
@@ -142,6 +148,12 @@ export function buildKart(kartDef, ch) {
   }
   addOutlines(tilt);
   tilt.traverse(o => { if (o.isMesh && !o.userData.noInk) o.castShadow = true; });
-  root.userData = { tilt, wheels, driver, exhaust, blob, bike: !!kartDef.bike };
+  // Batch: ~60 primitive pieces + their ink hulls -> a handful of meshes (one per material).
+  // Wheels spin and the driver leans, so each is batched on its own and kept movable.
+  // Wheels bake into the body: 4 wheels x 4 materials was 16 extra draw calls per kart, and spoke
+  // spin is invisible at racing speed anyway. The driver stays separate so he can lean into turns.
+  mergeAll(driver); driver.userData.dyn = true;
+  mergeAll(tilt);
+  root.userData = { tilt, wheels: [], driver, exhaust, blob, bike: !!kartDef.bike };
   return root;
 }

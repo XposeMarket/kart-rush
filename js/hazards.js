@@ -1,4 +1,6 @@
 import * as THREE from './vendor/three.module.js';
+import { mergeAll } from './merge.js';
+import { modelOpts } from './models.js';
 
 // Course hazards in the Mario Kart spirit: Goombas, Piranha Plants, Thwomps, fire bars,
 // rolling snowballs, sliding penguins, pinball bumpers and a Chain Chomp.
@@ -64,7 +66,7 @@ const builders = {
     const bar = new THREE.Group(); bar.position.y = 1.6; g.add(bar);
     const fire = new THREE.MeshBasicMaterial({ color: '#ffb020', toneMapped: false });
     for (let k = 1; k <= 7; k++) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 8), fire); f.position.x = k * 1.15; bar.add(f); }
-    const light = new THREE.PointLight('#ff7a1a', 2.5, 18, 1.5); light.position.y = 2; g.add(light);
+    if (modelOpts.pointLights) { const light = new THREE.PointLight('#ff7a1a', 2.5, 18, 1.5); light.position.y = 2; g.add(light); }
     return { g, bar, r: 0.9, cy: 1.6 };
   },
   bumper() {
@@ -72,7 +74,7 @@ const builders = {
     const base = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2, 1.6, 24), new THREE.MeshStandardMaterial({ color: '#ff4fd8', emissive: '#ff4fd8', emissiveIntensity: 0.6 })); base.position.y = 0.8; g.add(base);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.25, 8, 28), new THREE.MeshBasicMaterial({ color: '#4ff0ff', toneMapped: false })); ring.rotation.x = Math.PI / 2; ring.position.y = 1.65; g.add(ring);
     const cap = ball(1.2, '#ffffff', 0, 1.7, 0, 16); cap.scale.y = 0.5; g.add(cap);
-    return { g, r: 2, cy: 0.9, bump: true };
+    return { g, ring, r: 2, cy: 0.9, bump: true };
   },
   chomp() {
     const g = new THREE.Group(), body = new THREE.Group();
@@ -93,6 +95,11 @@ export function createHazards(scene, track) {
   const list = [];
   (t.def.hazards || []).forEach(([type, u, l = 0], n) => {
     const b = builders[type](); const i = t.idxOf(u), s = t.samples[i];
+    // Batch each hazard's static pieces; animated parts stay separate.
+    for (const k of ['head', 'bar', 'body', 'post', 'ring']) if (b[k]) b[k].userData.dyn = true;
+    (b.links || []).forEach(l => l.userData.dyn = true); if (b.g.userData.b) b.g.userData.b.userData.dyn = true;
+    mergeAll(b.g);
+    for (const k of ['head', 'body']) if (b[k]) mergeAll(b[k]); // fire bar balls stay separate: each one is a hit sphere
     b.g.rotation.y = s.heading + Math.PI; group.add(b.g); // face oncoming racers
     list.push({ type, ...b, i, idx: i, s, lat0: l * t.halfW * 0.7, lat: 0, phase: n * 1.7, dead: 0, pos: new THREE.Vector3(), hits: [], cool: 0 });
   });
@@ -121,7 +128,7 @@ export function createHazards(scene, track) {
         if (y < 4.5) h.hits.push([p.clone().setY(p.y - 1), h.r]); break;
       }
       case 'firebar': { const p = place(h, h.lat0); h.bar.rotation.y = T * 1.6; h.hits.push([p.clone().setY(p.y + 1), 1.1]); const d = new THREE.Vector3(); h.bar.children.forEach(f => { f.getWorldPosition(d); h.hits.push([d.clone(), 0.75]); f.scale.setScalar(0.9 + Math.sin(T * 12 + f.position.x) * 0.15); }); break; }
-      case 'bumper': { const p = place(h, h.lat0 + Math.sin(T * 0.7) * hw * 0.25); h.g.scale.setScalar(1 + Math.max(0, h.cool) * 0.5); h.g.children[1].rotation.z = T * 3; h.hits.push([p.clone().setY(p.y + h.cy), h.r]); break; }
+      case 'bumper': { const p = place(h, h.lat0 + Math.sin(T * 0.7) * hw * 0.25); h.g.scale.setScalar(1 + Math.max(0, h.cool) * 0.5); h.ring.rotation.z = T * 3; h.hits.push([p.clone().setY(p.y + h.cy), h.r]); break; }
       case 'chomp': {
         const side = h.lat0 >= 0 ? 1 : -1; place(h, side * (hw + 3));
         const cyc = (T % 3.6) / 3.6, reach = cyc > 0.55 ? Math.sin((cyc - 0.55) / 0.45 * Math.PI) : 0;

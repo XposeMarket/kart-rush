@@ -8,7 +8,8 @@ import { createItems } from './items.js';
 import { createFx } from './fx.js';
 import { createHazards } from './hazards.js';
 import { buildDecor } from './decor.js';
-import { createGfx } from './gfx.js';
+import { createGfx, detectQuality } from './gfx.js';
+import { modelOpts } from './models.js';
 import { sfx, engine, playMusic, stopMusic, setMuted, isMuted, initAudio } from './audio.js';
 import { readInput, takeItem, takePause, resetInput, bindTouch, isTouch } from './input.js';
 import { createMenus, hud, createMinimap, fmt } from './ui.js';
@@ -21,14 +22,12 @@ $('controls-hint').innerHTML = isTouch
 bindTouch($('touch'));
 
 // ---------- Renderer ----------
-const renderer = new THREE.WebGLRenderer({ canvas: $('race'), antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.6 : 2));
+// With post-processing on, the composer does its own MSAA, so canvas AA would be wasted work.
+const renderer = new THREE.WebGLRenderer({ canvas: $('race'), antialias: detectQuality(isTouch).level === 'low', powerPreference: 'high-performance', stencil: false });
 renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const gfx = createGfx(renderer, isTouch);
-if (gfx.quality === 'low') renderer.setPixelRatio(1);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 2400);
-function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); gfx.resize(w, h); camera.aspect = w / h; camera.fov = w < h ? 82 : 68; camera.updateProjectionMatrix(); }
+function resize() { const w = innerWidth, h = innerHeight; gfx.resize(w, h); camera.aspect = w / h; camera.fov = w < h ? 82 : 68; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 
 let scene, track, scenery, decor, fx, items, hazards, minimap, karts = [], player, ais = [];
@@ -56,16 +55,18 @@ function loadRace() {
 
 function buildRace(def) {
   if (scene) { scene.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
-  scene = new THREE.Scene();
+  modelOpts.physical = gfx.quality === 'high'; modelOpts.pointLights = gfx.quality === 'high';
+  scene = new THREE.Scene(); scene.userData.pointLights = modelOpts.pointLights;
   track = buildTrack(def); scene.add(track.group);
   scenery = buildScenery(track, scene);
   scene.environment = gfx.envTex; scene.environmentIntensity = def.theme === 'rainbow' ? 0.22 : def.theme === 'lava' ? 0.25 : 0.45;
-  scenery.sun.shadow.mapSize.set(gfx.shadowSize, gfx.shadowSize); gfx.setTheme(def.theme);
+  gfx.attachSun(scenery.sun); gfx.setTheme(def.theme);
   decor = buildDecor(track, scene);
   fx = createFx(scene);
   items = createItems(scene, track, fx, (k, name) => { if (k === player) sfx[name] && sfx[name](); });
   hazards = createHazards(scene, track);
   minimap = createMinimap(track);
+  track.group.name = 'track'; scenery.group.name = 'scenery'; decor.group.name = 'decor'; hazards.group.name = 'hazards';
   karts = []; ais = [];
   const tt = cup.mode === 'tt';
   player = new Kart({ ch: cup.ch, kart: cup.kart, cls: cup.cc, track, isPlayer: true });
@@ -249,7 +250,7 @@ function updateCamera(dt) {
 function pause() {
   if (state !== 'race' && state !== 'intro') return;
   const prev = state; state = 'paused'; stopMusic(); engine(0, false);
-  overlay('PAUSED', track.def.name, '', [['RESUME', () => { state = prev; $('overlay').classList.add('hidden'); if (prev === 'race') playMusic(track.def.music); }, true], ['RESTART', () => buildRace(track.def)], [isMuted() ? 'SOUND ON' : 'SOUND OFF', () => { setMuted(!isMuted()); pause2(prev); }], ['QUIT', quit]]);
+  overlay('PAUSED', track.def.name, '', [['RESUME', () => { state = prev; $('overlay').classList.add('hidden'); if (prev === 'race') playMusic(track.def.music); }, true], ['RESTART', () => buildRace(track.def)], [isMuted() ? 'SOUND ON' : 'SOUND OFF', () => { setMuted(!isMuted()); pause2(prev); }], ['GRAPHICS: ' + (gfx.auto ? 'AUTO' : gfx.quality.toUpperCase()), () => { const order = ['auto', 'high', 'med', 'low'], cur = gfx.auto ? 'auto' : gfx.quality; gfx.setQuality(order[(order.indexOf(cur) + 1) % order.length]); pause2(prev); }], ['QUIT', quit]]);
 }
 function pause2(prev) { state = prev; pause(); }
 
@@ -283,16 +284,22 @@ function saveBest() { const b = JSON.parse(localStorage.getItem('kr-best') || '{
 let last = performance.now(), timeScale = 1;
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const rawMs = now - last, dt = Math.min(0.05, rawMs / 1000); last = now;
+  gfx.tick(rawMs, state === 'race');
   if (!scene) return;
   if (state !== 'paused' && state !== 'results' && state !== 'menu') {
+    const t0 = performance.now();
     const sub = Math.ceil(dt * timeScale / 0.025);
     for (let i = 0; i < sub; i++) step(dt * timeScale / sub);
+    perf.step += performance.now() - t0;
   }
   const racing = player && (state === 'race' || state === 'finish');
   const speedK = racing ? Math.min(1, Math.max(0, (player.speed / player.top - 0.82) * 4)) : 0;
   const boostK = racing && player.boost > 0 ? 1 : 0;
+  const t1 = performance.now();
   gfx.render(scene, camera, now / 1000, Math.max(speedK, boostK * 0.8), boostK);
+  perf.render += performance.now() - t1; perf.frames++;
 }
+const perf = { step: 0, render: 0, frames: 0 };
 requestAnimationFrame(frame);
-window.__kr = { snapCam() { updateCamera(1); camPos.copy(camera.position); }, set timeScale(v) { timeScale = v; }, get state() { return state; }, get player() { return player; }, get karts() { return karts; }, get track() { return track; }, startCup };
+window.__kr = { perf, renderer, gfx, get scene() { return scene; }, snapCam() { updateCamera(1); camPos.copy(camera.position); }, set timeScale(v) { timeScale = v; }, get state() { return state; }, get player() { return player; }, get karts() { return karts; }, get track() { return track; }, startCup };
