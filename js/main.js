@@ -6,6 +6,8 @@ import { Kart, TIER_COLORS } from './kart.js';
 import { createAI } from './ai.js';
 import { createItems } from './items.js';
 import { createFx } from './fx.js';
+import { createHazards } from './hazards.js';
+import { buildDecor } from './decor.js';
 import { sfx, engine, playMusic, stopMusic, setMuted, isMuted, initAudio } from './audio.js';
 import { readInput, takeItem, takePause, resetInput, bindTouch, isTouch } from './input.js';
 import { createMenus, hud, createMinimap, fmt } from './ui.js';
@@ -26,7 +28,7 @@ const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 2400);
 function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 82 : 68; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 
-let scene, track, scenery, fx, items, minimap, karts = [], player, ais = [];
+let scene, track, scenery, decor, fx, items, hazards, minimap, karts = [], player, ais = [];
 let state = 'menu', raceTime = 0, countdown = 0, lastBeep = 0, finishTimer = 0, cup = null;
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
 let shake = 0, fovKick = 0;
@@ -54,8 +56,10 @@ function buildRace(def) {
   scene = new THREE.Scene();
   track = buildTrack(def); scene.add(track.group);
   scenery = buildScenery(track, scene);
+  decor = buildDecor(track, scene);
   fx = createFx(scene);
   items = createItems(scene, track, fx, (k, name) => { if (k === player) sfx[name] && sfx[name](); });
+  hazards = createHazards(scene, track);
   minimap = createMinimap(track);
   karts = []; ais = [];
   const tt = cup.mode === 'tt';
@@ -100,11 +104,13 @@ function step(dt) {
     if (use) items.use(player, karts, { throwBack: use.back, emit: e => events.push(e) });
     player.update(dt, inp, events);
     for (const ai of ais) {
-      const out = ai.kart.finished ? { steer: 0, gas: true, drift: false } : ai.think(dt, track, karts, player, items.objects, (k, back) => items.use(k, karts, { throwBack: back, emit: e => events.push(e) }));
+      const out = ai.kart.finished ? { steer: 0, gas: true, drift: false } : ai.think(dt, track, karts, player, items.objects.concat(hazards.list), (k, back) => items.use(k, karts, { throwBack: back, emit: e => events.push(e) }));
       ai.kart.update(dt, out, events);
     }
     collideKarts(events);
+    slipstream(dt, events);
     items.update(dt, karts, events, raceTime);
+    hazards.update(dt, raceTime, karts, events, player);
     rankAndLaps(events);
     player.lookBack = inp.lookBack;
     if (state === 'finish') { finishTimer += dt; if (finishTimer > 4 || karts.every(k => k.finished)) endRace(); }
@@ -114,6 +120,7 @@ function step(dt) {
   fx.update(dt);
   updateCamera(dt);
   scenery.update(raceTime, player.pos);
+  decor.update(performance.now() / 1000, dt, player.pos);
   hud.update(player, lapOf(player), track.def.laps, player.finished ? player.finishTime : raceTime);
   minimap.draw(karts, player, items.objects);
   const ratio = Math.max(0, player.speed) / (player.top * 1.3);
@@ -151,6 +158,21 @@ function collideKarts(events) {
   }
 }
 
+// Drafting: tuck in behind a rival for ~1.3s to get a slipstream boost, like Mario Kart.
+function slipstream(dt, events) {
+  for (const k of karts) {
+    if (!k.grounded || k.speed < k.top * 0.6 || k.boost > 0 || k.falling) { k.draft = Math.max(0, (k.draft || 0) - dt * 2); continue; }
+    const f = k.forward; let behind = false;
+    for (const o of karts) {
+      if (o === k || o.falling) continue;
+      const dx = o.pos.x - k.pos.x, dz = o.pos.z - k.pos.z, along = dx * f.x + dz * f.z, side = Math.abs(dx * f.z - dz * f.x);
+      if (along > 2.5 && along < 16 && side < 2.2) { behind = true; break; }
+    }
+    k.draft = behind ? (k.draft || 0) + dt : Math.max(0, (k.draft || 0) - dt * 1.5);
+    if (k.draft > 1.3) { k.draft = 0; k.applyBoost(1.1, 2); events.push({ type: 'slipstream', kart: k }); }
+  }
+}
+
 function handleEvents(events) {
   for (const e of events) {
     const me = e.kart === player;
@@ -161,7 +183,10 @@ function handleEvents(events) {
       case 'pad': case 'shroom': if (me) { sfx.boost(); fovKick = 10; } break;
       case 'trick': if (me) { sfx.hop(); hud.toast('TRICK!', 0.6); } break;
       case 'trickboost': if (me) { sfx.boost(); fovKick = 7; } break;
-      case 'ramp': if (me) fovKick = 4; break;
+      case 'ramp': if (me) { fovKick = e.boost ? 10 : 4; if (e.boost) sfx.boost(); } break;
+      case 'thwomp': if (e.dist < 60) { shake = Math.max(shake, 0.6 * (1 - e.dist / 60)); sfx.bump(); } break;
+      case 'slipstream': if (me) { sfx.boost(); fovKick = 8; hud.toast('SLIPSTREAM!', 0.7); } break;
+      case 'stomp': fx.burst(e.pos, ['#ffe066', '#ffffff', '#8b4a1c'], 16, 7); if (me) { sfx.coin(); hud.toast('STOMP!', 0.6); } break;
       case 'land': if (me) shake = 0.25; fx.dust(e.kart.pos, '#d8d0c0'); break;
       case 'wall': if (me) { sfx.bump(); shake = 0.3; } break;
       case 'bump': sfx.bump(); shake = 0.2; break;
@@ -188,6 +213,7 @@ function emitFx(dt) {
     if (k.isDrifting) for (const s of [-1, 1]) { const p = k.pos.clone().addScaledVector(f, -1.2).addScaledVector(r, s * 1.1); p.y += 0.3; fx.spark(p, k.tier ? TIER_COLORS[k.tier] : '#ffffff', f); }
     if (k.boost > 0) for (const s of [-1, 1]) { const p = k.pos.clone().addScaledVector(f, -1.9).addScaledVector(r, s * 0.5); p.y += 0.6; fx.flame(p, f, k.boostPower >= 3 ? '#d45bff' : k.boostPower >= 2 ? '#ff7b1a' : '#4fb8ff'); }
     if (k.offroad && k.grounded && !track.def.fall && Math.abs(k.speed) > 5) fx.dust(k.pos.clone().addScaledVector(f, -1.5), track.def.theme === 'snow' ? '#ffffff' : '#b8a27a');
+    if (k === player && k.draft > 0.25) for (const s of [-1, 1]) { const p = k.pos.clone().addScaledVector(f, 3).addScaledVector(r, s * 1.8); p.y += 1 + Math.random(); fx.spark(p, '#dff4ff', f.clone().multiplyScalar(-4)); }
     if (k.star > 0 && Math.random() < 0.6) fx.spark(k.pos.clone().setY(k.pos.y + 1.2), `hsl(${Math.random() * 360},100%,60%)`, f);
   }
 }

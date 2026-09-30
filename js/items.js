@@ -2,13 +2,17 @@ import * as THREE from './vendor/three.module.js';
 import { ITEMS, ODDS } from './data.js';
 
 // Item boxes (respawning, rainbow-rotating), coins, and item behaviors.
+// Rainbow '?' face: mostly opaque so the box reads from far away (old one was ~13% alpha).
 function boxTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
-  g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(0, 0, 128, 128);
-  g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 8; g.strokeRect(4, 4, 120, 120);
-  g.fillStyle = '#fff'; g.font = '900 86px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.shadowColor = '#000'; g.shadowBlur = 8; g.fillText('?', 64, 70);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  const grad = g.createLinearGradient(0, 0, 128, 128);
+  ['#ff4f6d', '#ffb347', '#ffe95c', '#5cff8a', '#4fc3ff', '#b36bff'].forEach((col, i) => grad.addColorStop(i / 5, col));
+  g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(14, 14, 100, 100);
+  g.strokeStyle = '#ffffff'; g.lineWidth = 10; g.strokeRect(5, 5, 118, 118);
+  g.font = '900 88px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 9; g.strokeStyle = '#3a2a00'; g.strokeText('?', 64, 70); g.fillStyle = '#fff6c2'; g.fillText('?', 64, 70);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 
 const shellGeo = () => {
@@ -22,15 +26,20 @@ const shellGeo = () => {
 export function createItems(scene, track, fx, sound) {
   const group = new THREE.Group(); scene.add(group);
   const tex = boxTexture();
-  const boxMat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, opacity: 0.85, emissive: '#ffffff', emissiveIntensity: 0.35, roughness: 0.2, metalness: 0.3 });
+  const boxMat = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#ffffff', emissiveIntensity: 0.55, transparent: true, opacity: 0.92, roughness: 0.25, metalness: 0.1 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending });
+  const glowGeo = new THREE.BoxGeometry(2.9, 2.9, 2.9), boxGeo = new THREE.BoxGeometry(2.3, 2.3, 2.3);
+  const shadowMat = new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.25, depthWrite: false });
   const boxes = [], coins = [], objects = [];
   const t = track;
   (t.def.boxes || []).forEach(u => {
     const i = t.idxOf(u);
     for (let k = -2; k <= 2; k++) {
       const lat = k * t.halfW * 0.35;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 1.8), boxMat.clone()); m.position.copy(t.pointAt(i, lat, 1.6)); m.castShadow = true;
-      group.add(m); boxes.push({ m, i, lat, cool: 0 });
+      const m = new THREE.Mesh(boxGeo, boxMat.clone()); m.position.copy(t.pointAt(i, lat, 2)); m.castShadow = true;
+      const glow = new THREE.Mesh(glowGeo, glowMat.clone()); m.add(glow);
+      const sh = new THREE.Mesh(new THREE.CircleGeometry(1.2, 16).rotateX(-Math.PI / 2), shadowMat); sh.position.copy(t.pointAt(i, lat, 0.06)); group.add(sh);
+      group.add(m); boxes.push({ m, glow, sh, i, lat, base: m.position.y, cool: 0 });
     }
   });
   const coinMat = new THREE.MeshStandardMaterial({ color: '#ffcf1a', metalness: 0.9, roughness: 0.2, emissive: '#8a5a00', emissiveIntensity: 0.4 });
@@ -86,12 +95,15 @@ export function createItems(scene, track, fx, sound) {
 
   function update(dt, karts, events, time) {
     boxes.forEach(b => {
-      b.cool = Math.max(0, b.cool - dt); b.m.visible = b.cool <= 0;
+      b.cool = Math.max(0, b.cool - dt); b.m.visible = b.sh.visible = b.cool <= 0;
       if (b.cool <= 0 && b.cool + dt > 0) b.m.scale.setScalar(0.1);
-      b.m.scale.lerp(new THREE.Vector3(1, 1, 1), Math.min(1, dt * 6)); b.m.rotation.set(time * 0.8, time * 1.1, 0.4);
-      b.m.material.color.setHSL((time * 0.2 + b.lat * 0.03) % 1, 0.85, 0.65); b.m.material.emissive.setHSL((time * 0.2 + 0.5) % 1, 0.9, 0.25);
+      b.m.scale.lerp(new THREE.Vector3(1, 1, 1), Math.min(1, dt * 6)); b.m.rotation.set(0.45, time * 1.4 + b.lat, 0.45);
+      b.m.position.y = b.base + Math.sin(time * 2.4 + b.lat) * 0.25;
+      const hue = (time * 0.25 + b.lat * 0.04) % 1;
+      b.m.material.color.setHSL(hue, 0.35, 0.85); b.m.material.emissive.setHSL(hue, 0.6, 0.55);
+      b.glow.material.color.setHSL((hue + 0.5) % 1, 1, 0.6); b.glow.material.opacity = 0.16 + Math.sin(time * 5 + b.lat) * 0.08;
       if (b.cool > 0) return;
-      for (const k of karts) if (!k.falling && k.pos.distanceToSquared(b.m.position) < 6.5) {
+      for (const k of karts) if (!k.falling && k.pos.distanceToSquared(b.m.position) < 9) {
         b.cool = 3; fx.burst(b.m.position, ['#ffffff', '#7fdcff', '#ffe066', '#ff7fd1'], 18, 7);
         if (!k.item && k.roulette <= 0) { k.roulette = k.isPlayer ? 1.4 : 0.6; k.pendingItem = roll(k, karts); events.push({ type: 'box', kart: k }); }
         break;

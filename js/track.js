@@ -183,17 +183,28 @@ export function buildTrack(def) {
 
   // Ramps and dash panels.
   const idxOf = u => Math.floor(((u % 1) + 1) % 1 * N);
-  const ramps = (def.ramps || []).map(u => {
-    const i = idxOf(u), s = samples[i];
-    const shape = new THREE.Shape(); shape.moveTo(0, 0); shape.lineTo(6, 0); shape.lineTo(6, 1.6); shape.lineTo(0, 0);
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: def.width, bevelEnabled: false });
-    geo.translate(-6, 0, -def.width / 2); geo.rotateY(-Math.PI / 2);
-    const ramp = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: canvasTex(64, 64, (g) => { for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? '#1a8cff' : '#ffd23f'; g.fillRect(0, k * 8, 64, 8); } }), roughness: 0.5 }));
-    ramp.position.copy(s.p); ramp.rotation.y = s.heading; ramp.rotation.z = 0; ramp.castShadow = true; ramp.receiveShadow = true;
-    group.add(ramp);
-    return { i, len: 3 };
-  });
+  // Ramps are built on the real road samples so they follow the curve and banking
+  // (a flat wedge floated off banked turns). Entries: u or [u, 'boost'].
   const dash = dashTex();
+  const RL = 4, RH = 1.9;
+  const rampMat = new THREE.MeshStandardMaterial({ map: canvasTex(64, 64, g => { for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? '#1a8cff' : '#ffd23f'; g.fillRect(0, k * 8, 64, 8); } }), roughness: 0.5, side: THREE.DoubleSide });
+  const boostRampMat = new THREE.MeshStandardMaterial({ map: dash, emissive: '#ff8a00', emissiveMap: dash, emissiveIntensity: 0.6, roughness: 0.4, side: THREE.DoubleSide });
+  const ramps = (def.ramps || []).map(e => {
+    const [u, kind] = Array.isArray(e) ? e : [e, 'jump'];
+    const i = idxOf(u), boost = kind === 'boost', L = halfW + 0.3, pos = [], uv = [];
+    const v = (j, lat, lift) => { const s = samples[(i - RL + j + N) % N]; return [s.p.x + s.r.x * lat, surfaceY(s, lat) + lift, s.p.z + s.r.z * lat]; };
+    const P = (a, b, c, d, q) => { pos.push(...a, ...b, ...c, ...b, ...d, ...c); uv.push(...q[0], ...q[1], ...q[2], ...q[1], ...q[3], ...q[2]); };
+    for (let j = 0; j < RL; j++) {
+      const h0 = RH * j / RL + 0.04, h1 = RH * (j + 1) / RL + 0.04, v0 = j / RL, v1 = (j + 1) / RL;
+      P(v(j, -L, h0), v(j, L, h0), v(j + 1, -L, h1), v(j + 1, L, h1), [[0, v0], [1, v0], [0, v1], [1, v1]]);
+      for (const sl of [-L, L]) P(v(j, sl, 0), v(j, sl, h0), v(j + 1, sl, 0), v(j + 1, sl, h1), [[0, 0], [0, 0.2], [1, 0], [1, 0.2]]);
+    }
+    P(v(RL, -L, 0), v(RL, L, 0), v(RL, -L, RH + 0.04), v(RL, L, RH + 0.04), [[0, 0], [1, 0], [0, 0.25], [1, 0.25]]);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, boost ? boostRampMat : rampMat); mesh.castShadow = mesh.receiveShadow = true; group.add(mesh);
+    return { i, len: RL, h: RH, boost };
+  });
   const pads = (def.pads || []).map(([u, l]) => {
     const i = idxOf(u), s = samples[i], lat = l * halfW * 0.7;
     const m = new THREE.Mesh(new THREE.PlaneGeometry(5, 6).rotateX(-Math.PI / 2).rotateY(Math.PI), new THREE.MeshStandardMaterial({ map: dash, emissive: '#ff8a00', emissiveIntensity: 0.55, roughness: 0.4, polygonOffset: true, polygonOffsetFactor: -2 }));
@@ -220,7 +231,7 @@ export function buildTrack(def) {
   }
   function rampLift(i, lat) {
     if (Math.abs(lat) > halfW) return 0;
-    for (const r of ramps) { const d = (r.i - i + N) % N; if (d <= 3) return 1.6 * (1 - d / 3); }
+    for (const r of ramps) { const d = (r.i - i + N) % N; if (d <= r.len) return r.h * (1 - d / r.len); }
     return 0;
   }
   function groundAt(i, lat) {

@@ -130,7 +130,7 @@ export class Kart {
     const ground = t.groundAt(l3.i, l3.lat);
     for (const r of t.ramps) {
       const d = (l3.i - r.i + N) % N;
-      if (d >= 1 && d < 3 && this.grounded && this.speed > 8 && Math.abs(l3.lat) < t.halfW) { this.vy = 8 + this.speed * 0.14; this.grounded = false; this.trickReady = true; this.airT = 0; events.push({ type: 'ramp', kart: this }); }
+      if (d >= 1 && d < 3 && this.grounded && this.speed > 8 && Math.abs(l3.lat) < t.halfW) { this.vy = 8 + this.speed * 0.14; this.grounded = false; this.trickReady = true; this.airT = 0; if (r.boost) this.applyBoost(1, 2); events.push({ type: 'ramp', kart: this, boost: r.boost }); }
     }
     for (const p of t.pads) {
       const d = (l3.i - p.i + N) % N;
